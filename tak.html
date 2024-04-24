@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Move Block with Dynamic Boundaries</title>
+<style>
+    #container {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        border: 1px solid #ccc;
+        overflow: hidden;
+    }
+    #block {
+        width: 100px;
+        height: 100px;
+        background-color: red;
+        position: absolute;
+    }
+    #cssOutput {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background-color: white;
+        padding: 10px;
+        border: 1px solid #ccc;
+    }
+</style>
+</head>
+<body>
+
+<div id="container">
+    <div id="block"></div>
+    <div id="cssOutput"></div>
+</div>
+
+<script>
+var isMouseEnabled = true;
+var maxX = 0;
+var maxY = 0;
+
+window.addEventListener("load", function() {
+    setDynamicBoundaries();
+    startDrag();
+});
+
+function setDynamicBoundaries() {
+    maxX = window.innerWidth;
+    maxY = window.innerHeight;
+}
+
+function startDrag() {
+    var isTouchDevice = 'ontouchstart' in document.documentElement;
+    if (isTouchDevice) {
+        isMouseEnabled = false;
+        document.getElementById("block").addEventListener("touchstart", touchStart);
+    } else {
+        document.getElementById("block").addEventListener("mousedown", drag);
+    }
+}
+
+function touchStart(event) {
+    event.preventDefault();
+    var container = document.getElementById("container");
+    var block = document.getElementById("block");
+    var touch = event.touches[0];
+    var initialX = touch.clientX - container.offsetLeft - block.offsetWidth / 2;
+    var initialY = touch.clientY - container.offsetTop - block.offsetHeight / 2;
+    
+    document.addEventListener("touchmove", function(event) {
+        event.preventDefault();
+        var touch = event.touches[0];
+        var x = touch.clientX - container.offsetLeft - block.offsetWidth / 2;
+        var y = touch.clientY - container.offsetTop - block.offsetHeight / 2;
+        
+        x = Math.min(Math.max(0, x), maxX - block.offsetWidth);
+        y = Math.min(Math.max(0, y), maxY - block.offsetHeight);
+        
+        block.style.left = x + "px";
+        block.style.top = y + "px";
+        displayCSS();
+    });
+
+    document.addEventListener("touchend", function() {
+        document.removeEventListener("touchmove", moveBlock);
+    });
+}
+
+function drag(event) {
+    event.preventDefault();
+    var container = document.getElementById("container");
+    var block = document.getElementById("block");
+    var x = event.clientX - container.offsetLeft - block.offsetWidth / 2;
+    var y = event.clientY - container.offsetTop - block.offsetHeight / 2;
+
+    x = Math.min(Math.max(0, x), maxX - block.offsetWidth);
+    y = Math.min(Math.max(0, y), maxY - block.offsetHeight);
+
+    block.style.left = x + "px";
+    block.style.top = y + "px";
+    displayCSS();
+}
+
+function displayCSS() {
+    var block = document.getElementById("block");
+    var cssOutput = document.getElementById("cssOutput");
+    var cssText = "position: absolute; left: " + block.style.left + "; top: " + block.style.top + ";";
+    cssOutput.textContent = cssText;
+}
+</script>
+
+</body>
+</html>
