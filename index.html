@@ -1,118 +1,141 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Single Page Docs</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Inter', sans-serif;
-      background-color: #f8f9fa;
-      color: #333;
-      line-height: 1.6;
-      padding: 2rem;
-    }
-
-    header {
-      text-align: center;
-      padding-bottom: 2rem;
-    }
-
-    h1 {
-      font-size: 2.5rem;
-      color: #111;
-    }
-
-    nav {
-      margin-bottom: 2rem;
-      text-align: center;
-    }
-
-    nav a {
-      margin: 0 1rem;
-      text-decoration: none;
-      color: #007bff;
-      font-weight: 600;
-    }
-
-    nav a:hover {
-      text-decoration: underline;
-    }
-
-    section {
-      margin-bottom: 3rem;
-      max-width: 800px;
-      margin-left: auto;
-      margin-right: auto;
-      background-color: #fff;
-      padding: 2rem;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    }
-
-    h2 {
-      color: #222;
-      margin-bottom: 1rem;
-      border-bottom: 2px solid #e9ecef;
-      padding-bottom: 0.5rem;
-    }
-
-    code {
-      background-color: #f1f3f5;
-      padding: 0.2rem 0.4rem;
-      border-radius: 4px;
-      font-family: monospace;
-    }
-
-    footer {
-      text-align: center;
-      margin-top: 4rem;
-      font-size: 0.9rem;
-      color: #777;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Epsilon Wallet</title>
+<script src="https://cdn.jsdelivr.net/npm/tweetnacl/nacl.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tweetnacl-util/nacl-util.min.js"></script>
+<style>
+body { font-family: sans-serif; max-width: 600px; margin: 2em auto; }
+button { margin: 0.5em 0; }
+input { width: 100%; margin: 0.5em 0; padding: 0.5em; }
+#log { white-space: pre-wrap; background: #eee; padding: 1em; margin-top: 1em; height: 200px; overflow-y: auto; }
+</style>
 </head>
 <body>
 
-  <header>
-    <h1>glitch Docs</h1>
-    <p>A simple documentation for glitches i found in different games (not all, starting from the wall jump glitch).</p>
-  </header>
+<h1>Epsilon 0 Wallet</h1>
 
-  <nav>
-    <a href="#intro">intro</a>
-    <a href="#usage">Usage</a>
-    <a href="#faq">proof</a>
-  </nav>
+<button id="createWallet">Create New Wallet</button>
+<button id="loadWallet">Load Wallet</button>
+<button id="exportWallet">Export Wallet</button>
 
-  <section id="intro">
-    <h2>intro</h2>
-    <p>This glitch documentatuon is abiut the wall jump glitch in gorilla tag.</p>
-  </section>
+<h3>Wallet Address:</h3>
+<div id="address">None</div>
 
-  <section id="usage">
-    <h2>Usage</h2>
-    <p>to succesfully do the glitch, you have to put the back of your board diagonally into the wall and push up</p>
-  </section>
-  
-  <section id="faq">
-    <h2>proof</h2>
-    <video width="250" height="250" controls>
-  <source src="vid.mp4" type="video/mp4">
-  Twój przeglądor nie wspiero tego formatu wideo.
-</video>
-  </section>
+<h3>Balance:</h3>
+<div id="balance">0</div>
+<button id="checkBalance">Check Balance</button>
 
-  <footer>
-    © 2025 Łoscypek Team – Stworzóne z serca Podhala
-  </footer>
+<h3>Send Epsilon:</h3>
+<input type="text" id="recipient" placeholder="Recipient Address">
+<input type="number" id="amount" placeholder="Amount">
+<button id="send">Send</button>
+
+<div id="log"></div>
+
+<script>
+const NODE = "http://127.0.0.1:8080"; // change to your server
+
+let wallet = null; // will hold { sk, pk }
+
+function log(msg) { document.getElementById('log').innerText += msg + "\n"; }
+
+// convert keys
+function hexToBytes(hex) {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < hex.length; i += 2) {
+        bytes[i/2] = parseInt(hex.substr(i,2),16);
+    }
+    return bytes;
+}
+function bytesToHex(bytes) {
+    return Array.from(bytes).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// Create new wallet
+document.getElementById("createWallet").onclick = () => {
+    const keyPair = nacl.sign.keyPair();
+    wallet = {
+        sk: keyPair.secretKey,
+        pk: keyPair.publicKey
+    };
+    document.getElementById("address").innerText = bytesToHex(wallet.pk);
+    log("New wallet created!");
+};
+
+// Load wallet (paste hex secret key)
+document.getElementById("loadWallet").onclick = () => {
+    const skHex = prompt("Paste your secret key (64 bytes hex):");
+    if(!skHex || skHex.length !== 128) { log("Invalid key"); return; }
+    const skBytes = hexToBytes(skHex);
+    wallet = {
+        sk: skBytes,
+        pk: skBytes.slice(32,64) // tweetnacl secretKey: last 32 bytes are public
+    };
+    document.getElementById("address").innerText = bytesToHex(wallet.pk);
+    log("Wallet loaded!");
+};
+async function sendHeartbeat() {
+    if (!wallet) return;
+    try {
+        await fetch(NODE + "/heartbeat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ address: bytesToHex(wallet.pk) })
+        });
+    } catch (e) {
+        log("Heartbeat failed");
+    }
+}
+
+// Send heartbeat every 5 seconds
+setInterval(sendHeartbeat, 5000);
+// Export wallet
+document.getElementById("exportWallet").onclick = () => {
+    if(!wallet) { log("No wallet loaded"); return; }
+    const blob = new Blob([bytesToHex(wallet.sk)], {type:'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "epsilon_wallet.txt";
+    a.click();
+    log("Wallet exported!");
+};
+
+// Check balance
+document.getElementById("checkBalance").onclick = async () => {
+    if(!wallet) { log("No wallet loaded"); return; }
+    const addr = bytesToHex(wallet.pk);
+    try {
+        const r = await fetch(`${NODE}/wallets`);
+        const wallets = await r.json();
+        document.getElementById("balance").innerText = wallets[addr]?.balance||0;
+        log("Balance updated");
+    } catch(e) { log("Failed to fetch balance"); }
+};
+
+// Send transaction
+document.getElementById("send").onclick = async () => {
+    if(!wallet) { log("No wallet loaded"); return; }
+    const recipient = document.getElementById("recipient").value.trim();
+    const amount = parseInt(document.getElementById("amount").value);
+    if(!recipient || isNaN(amount)) { log("Invalid recipient or amount"); return; }
+
+    const msg = new TextEncoder().encode(bytesToHex(wallet.pk)+recipient+amount);
+    const sig = bytesToHex(nacl.sign.detached(msg, wallet.sk));
+
+    try {
+        const r = await fetch(`${NODE}/send`, {
+            method:"POST",
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ sender: bytesToHex(wallet.pk), recipient, amount, signature: sig })
+        });
+        const text = await r.text();
+        log("Send response: "+text);
+    } catch(e) { log("Failed to send transaction"); }
+};
+</script>
 
 </body>
 </html>
